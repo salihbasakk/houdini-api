@@ -30,6 +30,30 @@
 	root /app/public
 	encode zstd br gzip
 
+    # CORS Headers - Tamamen açık
+    header {
+        Access-Control-Allow-Origin "*"
+        Access-Control-Allow-Methods "GET, POST, PUT, PATCH, DELETE, OPTIONS"
+        Access-Control-Allow-Headers "Content-Type, Authorization, X-Requested-With, Accept, Origin, X-Custom-Header"
+        Access-Control-Expose-Headers "*"
+        Access-Control-Max-Age "86400"
+    }
+
+    # OPTIONS preflight requests için özel handler
+    @corsPreflightRequest {
+        method OPTIONS
+    }
+
+    handle @corsPreflightRequest {
+        header {
+            Access-Control-Allow-Origin "*"
+            Access-Control-Allow-Methods "GET, POST, PUT, PATCH, DELETE, OPTIONS"
+            Access-Control-Allow-Headers "Content-Type, Authorization, X-Requested-With, Accept, Origin, X-Custom-Header"
+            Access-Control-Max-Age "86400"
+        }
+        respond 204
+    }
+
 	mercure {
 		# Publisher JWT key
 		publisher_jwt {env.MERCURE_PUBLISHER_JWT_KEY} {env.MERCURE_PUBLISHER_JWT_ALG}

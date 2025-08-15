@@ -20,7 +20,7 @@ class TelemetryController extends AbstractController
     {
     }
 
-    #[Route('/api/telemetry', name: 'api_telemetry', methods: ['POST'])]
+    #[Route('/api/telemetry', name: 'api_telemetry', methods: ['POST', 'OPTIONS'])]
     public function submitTelemetry(Request $request): JsonResponse
     {
         try {
