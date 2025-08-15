@@ -27,13 +27,17 @@ class TelemetryController extends AbstractController
             $data = json_decode($request->getContent(), true);
 
             if (!$data) {
-                return new JsonResponse(['error' => 'Invalid JSON'], Response::HTTP_BAD_REQUEST);
+                $response = new JsonResponse(['error' => 'Invalid JSON'], Response::HTTP_BAD_REQUEST);
+                $this->addCorsHeaders($response);
+                return $response;
             }
 
             // Extract project_id from the data
             $projectId = $data['project_id'] ?? null;
             if (!$projectId) {
-                return new JsonResponse(['error' => 'project_id is required'], Response::HTTP_BAD_REQUEST);
+                $response = new JsonResponse(['error' => 'project_id is required'], Response::HTTP_BAD_REQUEST);
+                $this->addCorsHeaders($response);
+                return $response;
             }
 
             // Create a single TraceLog entry with the entire telemetry data as JSON
@@ -43,17 +47,23 @@ class TelemetryController extends AbstractController
 
             $this->traceLogRepository->save($traceLog, true);
 
-            return new JsonResponse([
+            $response = new JsonResponse([
                 'status' => 'success',
                 'message' => 'Telemetry data saved successfully',
                 'log_id' => $traceLog->getId()
             ], Response::HTTP_CREATED);
 
+            $this->addCorsHeaders($response);
+            return $response;
+
         } catch (\Exception $e) {
-            return new JsonResponse([
+            $response = new JsonResponse([
                 'error' => 'Failed to process telemetry data',
                 'message' => $e->getMessage()
             ], Response::HTTP_INTERNAL_SERVER_ERROR);
+
+            $this->addCorsHeaders($response);
+            return $response;
         }
     }
 
@@ -99,22 +109,39 @@ class TelemetryController extends AbstractController
                 ]
             ];
 
-            return new Response(
+            $response = new Response(
                 json_encode($responseData, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE),
                 Response::HTTP_OK,
                 ['Content-Type' => 'application/json']
             );
+
+            $this->addCorsHeaders($response);
+            return $response;
+
         } catch (\Exception $e) {
             $responseData = [
                 'error' => 'Failed to retrieve telemetry data',
                 'message' => $e->getMessage()
             ];
-            return new Response(
+
+            $response = new Response(
                 json_encode($responseData, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE),
                 Response::HTTP_INTERNAL_SERVER_ERROR,
                 ['Content-Type' => 'application/json']
             );
+
+            $this->addCorsHeaders($response);
+            return $response;
         }
+    }
+
+    #[Route('/api/telemetry', name: 'api_telemetry_options', methods: ['OPTIONS'])]
+    #[Route('/api/telemetry/{projectId}', name: 'api_telemetry_get_options', methods: ['OPTIONS'])]
+    public function handlePreflight(): Response
+    {
+        $response = new Response('', Response::HTTP_OK);
+        $this->addCorsHeaders($response);
+        return $response;
     }
 
     private function generateAiSuggestion(array &$telemetryData): void
@@ -156,5 +183,14 @@ class TelemetryController extends AbstractController
         } catch (\Exception $e) {
             error_log("Failed to generate AI suggestion: " . $e->getMessage());
         }
+    }
+
+    private function addCorsHeaders(Response $response): void
+    {
+        $response->headers->set('Access-Control-Allow-Origin', '*');
+        $response->headers->set('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+        $response->headers->set('Access-Control-Allow-Headers', '*');
+        $response->headers->set('Access-Control-Allow-Credentials', 'true');
+        $response->headers->set('Access-Control-Max-Age', '86400');
     }
 }
