@@ -129,10 +129,23 @@ class TelemetryController extends AbstractController
                     $exceptionMessage = $telemetry['message'] ?? 'Unknown exception occurred';
                     $exceptionType = $telemetry['class'] ?? 'Exception';
 
+                    // Prepare detailed exception context for better AI suggestions
+                    $exceptionContext = [
+                        'class' => $telemetry['class'] ?? 'Exception',
+                        'message' => $telemetry['message'] ?? 'Unknown exception occurred',
+                        'file' => $telemetry['file'] ?? null,
+                        'line' => $telemetry['line'] ?? null,
+                        'trace' => $telemetry['trace'] ?? null,
+                        'timestamp' => $telemetry['timestamp'] ?? null,
+                        'context' => $telemetry['context'] ?? null,
+                        'service_name' => $telemetry['service_name'] ?? null,
+                        'service_version' => $telemetry['service_version'] ?? null
+                    ];
+
                     $aiSuggestion = $this->aiSuggestionService->generateSuggestionForException(
                         $exceptionMessage,
                         $exceptionType,
-                        $telemetryData
+                        $exceptionContext
                     );
 
                     if ($aiSuggestion) {

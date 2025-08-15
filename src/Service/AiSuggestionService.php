@@ -21,10 +21,10 @@ class AiSuggestionService
         $this->openAiClient = OpenAI::client($apiKey);
     }
 
-    public function generateSuggestionForException(string $exceptionMessage, string $exceptionType, ?array $telemetryData = null): ?string
+    public function generateSuggestionForException(string $exceptionMessage, string $exceptionType, ?array $exceptionContext = null): ?string
     {
         try {
-            $prompt = $this->buildPrompt($exceptionMessage, $exceptionType, $telemetryData);
+            $prompt = $this->buildPrompt($exceptionMessage, $exceptionType, $exceptionContext);
 
             $response = $this->openAiClient->chat()->create([
                 'model' => 'gpt-3.5-turbo',
@@ -50,32 +50,55 @@ class AiSuggestionService
         }
     }
 
-    private function buildPrompt(string $exceptionMessage, string $exceptionType, ?array $telemetryData): string
+    private function buildPrompt(string $exceptionMessage, string $exceptionType, ?array $exceptionContext = null): string
     {
         $prompt = "Exception Type: {$exceptionType}\n";
         $prompt .= "Exception Message: {$exceptionMessage}\n\n";
 
-        if ($telemetryData) {
-            $prompt .= "Additional Context:\n";
+        if ($exceptionContext) {
+            $prompt .= "Detailed Exception Context:\n";
 
-            if (isset($telemetryData['url'])) {
-                $prompt .= "- URL: {$telemetryData['url']}\n";
+            // File and line information
+            if (isset($exceptionContext['file']) && $exceptionContext['file']) {
+                $prompt .= "- File: {$exceptionContext['file']}\n";
             }
 
-            if (isset($telemetryData['user_agent'])) {
-                $prompt .= "- User Agent: {$telemetryData['user_agent']}\n";
+            if (isset($exceptionContext['line']) && $exceptionContext['line']) {
+                $prompt .= "- Line: {$exceptionContext['line']}\n";
             }
 
-            if (isset($telemetryData['stack_trace'])) {
-                $prompt .= "- Stack Trace: " . substr($telemetryData['stack_trace'], 0, 500) . "\n";
+            // Stack trace (limit to first 800 chars for context)
+            if (isset($exceptionContext['trace']) && $exceptionContext['trace']) {
+                $prompt .= "- Stack Trace: " . substr($exceptionContext['trace'], 0, 800) . "\n";
             }
 
-            if (isset($telemetryData['request_data'])) {
-                $prompt .= "- Request Data: " . json_encode($telemetryData['request_data']) . "\n";
+            // Request context
+            if (isset($exceptionContext['context']) && is_array($exceptionContext['context'])) {
+                $prompt .= "- Request Context:\n";
+                foreach ($exceptionContext['context'] as $key => $value) {
+                    $prompt .= "  * {$key}: " . (is_scalar($value) ? $value : json_encode($value)) . "\n";
+                }
+            }
+
+            // Service information
+            if (isset($exceptionContext['service_name']) && $exceptionContext['service_name']) {
+                $prompt .= "- Service: {$exceptionContext['service_name']}\n";
+            }
+
+            if (isset($exceptionContext['service_version']) && $exceptionContext['service_version']) {
+                $prompt .= "- Version: {$exceptionContext['service_version']}\n";
+            }
+
+            // Timestamp
+            if (isset($exceptionContext['timestamp']) && $exceptionContext['timestamp']) {
+                $timestamp = is_numeric($exceptionContext['timestamp'])
+                    ? date('Y-m-d H:i:s', $exceptionContext['timestamp'])
+                    : $exceptionContext['timestamp'];
+                $prompt .= "- Occurred at: {$timestamp}\n";
             }
         }
 
-        $prompt .= "\nPlease provide a concise suggestion on how to fix this issue.";
+        $prompt .= "\nBased on this detailed exception information, please provide a specific, actionable suggestion to fix this issue. Focus on the exact file, line, and context provided.";
 
         return $prompt;
     }
