@@ -7,6 +7,10 @@
     "prefer-stable": true,
     "require": {
         "php": ">=8.2",
+        "doctrine/dbal": "^3",
+        "doctrine/doctrine-bundle": "^2.15",
+        "doctrine/doctrine-migrations-bundle": "^3.4",
+        "doctrine/orm": "^3.5",
         "ext-ctype": "*",
         "ext-iconv": "*",
         "nyholm/psr7": "^1.8",
@@ -72,10 +76,6 @@
         }
     },
     "require-dev": {
-        "doctrine/dbal": "^3",
-        "doctrine/doctrine-bundle": "^2.15",
-        "doctrine/doctrine-migrations-bundle": "^3.4",
-        "doctrine/orm": "^3.5",
         "symfony/maker-bundle": "^1.64"
     }
 }
