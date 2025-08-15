@@ -99,44 +99,27 @@ class TelemetryController extends AbstractController
                 ]
             ];
 
-            $response = new Response(
+            return new Response(
                 json_encode($responseData, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE),
                 Response::HTTP_OK,
                 ['Content-Type' => 'application/json']
             );
-
-            return $response;
-
         } catch (\Exception $e) {
             $responseData = [
                 'error' => 'Failed to retrieve telemetry data',
                 'message' => $e->getMessage()
             ];
-
-            // Generate AI suggestion for this exception
-            $aiSuggestion = $this->aiSuggestionService->generateSuggestionForException(
-                $e->getMessage(),
-                get_class($e)
-            );
-
-            if ($aiSuggestion) {
-                $responseData['ai_suggestion'] = $aiSuggestion;
-            }
-
-            $response = new Response(
+            return new Response(
                 json_encode($responseData, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE),
                 Response::HTTP_INTERNAL_SERVER_ERROR,
                 ['Content-Type' => 'application/json']
             );
-
-            return $response;
         }
     }
 
     private function generateAiSuggestion(array &$telemetryData): void
     {
         try {
-            // Check if telemetry_data exists and is an array
             if (!isset($telemetryData['telemetry_data']) || !is_array($telemetryData['telemetry_data'])) {
                 return;
             }
@@ -153,12 +136,11 @@ class TelemetryController extends AbstractController
                     );
 
                     if ($aiSuggestion) {
-                        $telemetry['suggestion'] = $aiSuggestion;
+                        $telemetry['suggestion'] = str_replace('"', '', $aiSuggestion);
                     }
                 }
             }
         } catch (\Exception $e) {
-            // If AI suggestion generation fails, log it but don't break the main flow
             error_log("Failed to generate AI suggestion: " . $e->getMessage());
         }
     }

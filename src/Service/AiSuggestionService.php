@@ -43,12 +43,8 @@ class AiSuggestionService
             ]);
 
             $suggestion = $response->choices[0]->message->content ?? null;
-
-            // Clean up the response to ensure it's properly unescaped
-            return $suggestion ? $this->cleanSuggestionText($suggestion) : null;
-
+            return $suggestion ?? null;
         } catch (\Exception $e) {
-            // Log the error but don't fail the main request
             error_log("AI Suggestion Service Error: " . $e->getMessage());
             return null;
         }
@@ -62,7 +58,6 @@ class AiSuggestionService
         if ($telemetryData) {
             $prompt .= "Additional Context:\n";
 
-            // Extract relevant telemetry information
             if (isset($telemetryData['url'])) {
                 $prompt .= "- URL: {$telemetryData['url']}\n";
             }
@@ -83,22 +78,5 @@ class AiSuggestionService
         $prompt .= "\nPlease provide a concise suggestion on how to fix this issue.";
 
         return $prompt;
-    }
-
-    private function cleanSuggestionText(string $text): string
-    {
-        // Remove any JSON formatting that might be present
-        $text = trim($text);
-
-        // Remove surrounding quotes if present
-        if ((str_starts_with($text, '"') && str_ends_with($text, '"')) ||
-            (str_starts_with($text, "'") && str_ends_with($text, "'"))) {
-            $text = substr($text, 1, -1);
-        }
-
-        // More aggressive unescaping - handle all possible escape sequences
-        $text = stripcslashes($text);
-
-        return trim($text);
     }
 }
