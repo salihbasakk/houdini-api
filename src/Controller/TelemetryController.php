@@ -27,17 +27,13 @@ class TelemetryController extends AbstractController
             $data = json_decode($request->getContent(), true);
 
             if (!$data) {
-                $response = new JsonResponse(['error' => 'Invalid JSON'], Response::HTTP_BAD_REQUEST);
-                $this->addCorsHeaders($response);
-                return $response;
+                return new JsonResponse(['error' => 'Invalid JSON'], Response::HTTP_BAD_REQUEST);
             }
 
             // Extract project_id from the data
             $projectId = $data['project_id'] ?? null;
             if (!$projectId) {
-                $response = new JsonResponse(['error' => 'project_id is required'], Response::HTTP_BAD_REQUEST);
-                $this->addCorsHeaders($response);
-                return $response;
+                return new JsonResponse(['error' => 'project_id is required'], Response::HTTP_BAD_REQUEST);
             }
 
             // Create a single TraceLog entry with the entire telemetry data as JSON
@@ -47,23 +43,16 @@ class TelemetryController extends AbstractController
 
             $this->traceLogRepository->save($traceLog, true);
 
-            $response = new JsonResponse([
+            return new JsonResponse([
                 'status' => 'success',
                 'message' => 'Telemetry data saved successfully',
                 'log_id' => $traceLog->getId()
             ], Response::HTTP_CREATED);
-
-            $this->addCorsHeaders($response);
-            return $response;
-
         } catch (\Exception $e) {
-            $response = new JsonResponse([
+            return new JsonResponse([
                 'error' => 'Failed to process telemetry data',
                 'message' => $e->getMessage()
             ], Response::HTTP_INTERNAL_SERVER_ERROR);
-
-            $this->addCorsHeaders($response);
-            return $response;
         }
     }
 
@@ -109,29 +98,22 @@ class TelemetryController extends AbstractController
                 ]
             ];
 
-            $response = new Response(
+            return new Response(
                 json_encode($responseData, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE),
                 Response::HTTP_OK,
                 ['Content-Type' => 'application/json']
             );
-
-            $this->addCorsHeaders($response);
-            return $response;
-
         } catch (\Exception $e) {
             $responseData = [
                 'error' => 'Failed to retrieve telemetry data',
                 'message' => $e->getMessage()
             ];
 
-            $response = new Response(
+            return new Response(
                 json_encode($responseData, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE),
                 Response::HTTP_INTERNAL_SERVER_ERROR,
                 ['Content-Type' => 'application/json']
             );
-
-            $this->addCorsHeaders($response);
-            return $response;
         }
     }
 
@@ -139,9 +121,7 @@ class TelemetryController extends AbstractController
     #[Route('/api/telemetry/{projectId}', name: 'api_telemetry_get_options', methods: ['OPTIONS'])]
     public function handlePreflight(): Response
     {
-        $response = new Response('', Response::HTTP_OK);
-        $this->addCorsHeaders($response);
-        return $response;
+        return new Response('', Response::HTTP_OK);
     }
 
     private function generateAiSuggestion(array &$telemetryData): void
@@ -183,13 +163,5 @@ class TelemetryController extends AbstractController
         } catch (\Exception $e) {
             error_log("Failed to generate AI suggestion: " . $e->getMessage());
         }
-    }
-
-    private function addCorsHeaders(Response $response): void
-    {
-        $response->headers->set('Access-Control-Allow-Origin', '*');
-        $response->headers->set('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
-        $response->headers->set('Access-Control-Allow-Headers', 'Origin, Content-Type, Accept, Authorization, X-Requested-With');
-        $response->headers->set('Access-Control-Max-Age', '86400');
     }
 }
