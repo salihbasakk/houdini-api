@@ -4,6 +4,7 @@ namespace App\Controller;
 
 use App\Entity\TraceLog;
 use App\Repository\TraceLogRepository;
+use App\Service\AiSuggestionService;
 use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
 use Symfony\Component\HttpFoundation\JsonResponse;
 use Symfony\Component\HttpFoundation\Request;
@@ -13,8 +14,10 @@ use Symfony\Component\Routing\Annotation\Route;
 class TelemetryController extends AbstractController
 {
     public function __construct(
-        private TraceLogRepository $traceLogRepository
-    ) {
+        private TraceLogRepository  $traceLogRepository,
+        private AiSuggestionService $aiSuggestionService
+    )
+    {
     }
 
     #[Route('/api/telemetry', name: 'api_telemetry', methods: ['POST'])]
@@ -55,28 +58,35 @@ class TelemetryController extends AbstractController
     }
 
     #[Route('/api/telemetry/{projectId}', name: 'api_telemetry_get', methods: ['GET'])]
-    public function getTelemetryLogs(string $projectId, Request $request): JsonResponse
+    public function getTelemetryLogs(string $projectId, Request $request): Response
     {
         try {
-            $page = max(1, (int) $request->query->get('page', 1));
+            $page = max(1, (int)$request->query->get('page', 1));
             $limit = 10;
             $offset = ($page - 1) * $limit;
 
             $logs = $this->traceLogRepository->findByProjectIdPaginated($projectId, $offset, $limit);
             $totalCount = $this->traceLogRepository->countByProjectId($projectId);
-            $totalPages = (int) ceil($totalCount / $limit);
+            $totalPages = (int)ceil($totalCount / $limit);
 
             $data = [];
             foreach ($logs as $log) {
-                $data[] = [
+                $telemetryData = $log->getTelemetryData();
+
+                // Generate AI suggestions for exceptions in telemetry data
+                $this->generateAiSuggestion($telemetryData);
+
+                $logEntry = [
                     'id' => $log->getId(),
                     'project_id' => $log->getProjectId(),
-                    'telemetry_data' => $log->getTelemetryData(),
+                    'telemetry_data' => $telemetryData,
                     'created_at' => $log->getCreatedAt()->format('Y-m-d H:i:s')
                 ];
+
+                $data[] = $logEntry;
             }
 
-            return new JsonResponse([
+            $responseData = [
                 'status' => 'success',
                 'data' => $data,
                 'pagination' => [
@@ -87,13 +97,69 @@ class TelemetryController extends AbstractController
                     'has_next' => $page < $totalPages,
                     'has_previous' => $page > 1
                 ]
-            ]);
+            ];
+
+            $response = new Response(
+                json_encode($responseData, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE),
+                Response::HTTP_OK,
+                ['Content-Type' => 'application/json']
+            );
+
+            return $response;
 
         } catch (\Exception $e) {
-            return new JsonResponse([
+            $responseData = [
                 'error' => 'Failed to retrieve telemetry data',
                 'message' => $e->getMessage()
-            ], Response::HTTP_INTERNAL_SERVER_ERROR);
+            ];
+
+            // Generate AI suggestion for this exception
+            $aiSuggestion = $this->aiSuggestionService->generateSuggestionForException(
+                $e->getMessage(),
+                get_class($e)
+            );
+
+            if ($aiSuggestion) {
+                $responseData['ai_suggestion'] = $aiSuggestion;
+            }
+
+            $response = new Response(
+                json_encode($responseData, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE),
+                Response::HTTP_INTERNAL_SERVER_ERROR,
+                ['Content-Type' => 'application/json']
+            );
+
+            return $response;
+        }
+    }
+
+    private function generateAiSuggestion(array &$telemetryData): void
+    {
+        try {
+            // Check if telemetry_data exists and is an array
+            if (!isset($telemetryData['telemetry_data']) || !is_array($telemetryData['telemetry_data'])) {
+                return;
+            }
+
+            foreach ($telemetryData['telemetry_data'] as &$telemetry) {
+                if (isset($telemetry['type']) && $telemetry['type'] == 'exception') {
+                    $exceptionMessage = $telemetry['message'] ?? 'Unknown exception occurred';
+                    $exceptionType = $telemetry['class'] ?? 'Exception';
+
+                    $aiSuggestion = $this->aiSuggestionService->generateSuggestionForException(
+                        $exceptionMessage,
+                        $exceptionType,
+                        $telemetryData
+                    );
+
+                    if ($aiSuggestion) {
+                        $telemetry['suggestion'] = $aiSuggestion;
+                    }
+                }
+            }
+        } catch (\Exception $e) {
+            // If AI suggestion generation fails, log it but don't break the main flow
+            error_log("Failed to generate AI suggestion: " . $e->getMessage());
         }
     }
 }
